@@ -15,6 +15,8 @@ sigil-orchestra の統合管理ダッシュボードの設計である。画面�
 
 原型の実物は、本リポジトリ内の `docs/prototype/magic-circle-dashboard.html` である（自己完結した HTML で、ブラウザで開けばそのまま動く）。2026-11-22 に完成し、所有者が承認した。データはすべてダミーで、配置と操作の設計を固めるための原型という位置づけである。本書は、その原型で固めた設計を記録する。
 
+原型のプレビュー（GitHub Pages）: https://goodnasubi.github.io/sigil-orchestra/prototype/magic-circle-dashboard.html
+
 なお、クマ（Muse）の作業用スペースにも同じ原型があるが、スペースは他のエージェントから見られない。他のエージェントは、リポジトリ内の HTML を見ること。
 
 ## 配置（魔法陣の構造）
