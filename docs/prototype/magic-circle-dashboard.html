@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:," />
+    <title>魔法陣ダッシュボード</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #060a1e;
+        --bg2: #0b1233;
+        --ink: #dfe8ff;
+        --ink-dim: #93a3cc;
+        --ink-faint: #5d6c96;
+        --mint: #4df0b8;
+        --mint-soft: rgba(77, 240, 184, .55);
+        --amber: #ffb84d;
+        --red: #ff5266;
+        --line: rgba(120, 160, 255, .16);
+        --panel: rgba(13, 20, 48, .82);
+        --panel-edge: rgba(110, 150, 255, .22);
+        --node-size: clamp(58px, 13.5vw, 86px);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background:
+          radial-gradient(1100px 700px at 50% 30%, #101b47 0%, var(--bg2) 42%, var(--bg) 78%),
+          var(--bg);
+        color: var(--ink);
+        font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+      /* faint starfield */
+      body::before {
+        content: "";
+        position: fixed; inset: 0; pointer-events: none; z-index: 0;
+        background-image:
+          radial-gradient(1.5px 1.5px at 12% 22%, rgba(200,220,255,.7) 50%, transparent 51%),
+          radial-gradient(1px 1px at 78% 12%, rgba(200,220,255,.55) 50%, transparent 51%),
+          radial-gradient(1.2px 1.2px at 34% 68%, rgba(200,220,255,.5) 50%, transparent 51%),
+          radial-gradient(1px 1px at 88% 55%, rgba(200,220,255,.6) 50%, transparent 51%),
+          radial-gradient(1.4px 1.4px at 55% 88%, rgba(200,220,255,.45) 50%, transparent 51%),
+          radial-gradient(1px 1px at 5% 82%, rgba(200,220,255,.5) 50%, transparent 51%),
+          radial-gradient(1px 1px at 66% 38%, rgba(200,220,255,.4) 50%, transparent 51%),
+          radial-gradient(1.2px 1.2px at 25% 45%, rgba(200,220,255,.35) 50%, transparent 51%);
+      }
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+      /* ---------- control bar ---------- */
+      .controls {
+        position: relative; z-index: 3;
+        display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+        max-width: 1240px; margin: 0 auto; padding: 16px 16px 4px;
+      }
+      .btn {
+        font-family: inherit; cursor: pointer; border-radius: 10px;
+        min-height: 44px; padding: 10px 20px; font-size: 15px; font-weight: 700;
+        letter-spacing: .08em; border: 1px solid transparent;
+        transition: filter .15s ease, transform .1s ease, background .15s ease;
+      }
+      .btn:active { transform: translateY(1px); }
+      .btn:focus-visible, .node:focus-visible, .seg button:focus-visible, .base:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+      .btn-invoke {
+        color: #04241a;
+        background: linear-gradient(180deg, #7df7cd, #2fe0a4);
+        box-shadow: 0 0 18px rgba(77,240,184,.45), 0 0 46px rgba(77,240,184,.18);
+        font-family: "Shippori Mincho B1", serif; font-size: 17px;
+      }
+      .btn-invoke:hover { filter: brightness(1.08); }
+      .btn-invoke[disabled] { filter: grayscale(.5) brightness(.7); cursor: wait; box-shadow: none; }
+      .btn-ghost {
+        color: var(--ink-dim); background: rgba(20, 30, 66, .55);
+        border-color: var(--panel-edge); font-weight: 500;
+      }
+      .btn-ghost:hover { color: var(--ink); border-color: rgba(140,175,255,.5); }
+      .status-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+      .overall {
+        font-family: "Shippori Mincho B1", serif; font-weight: 700; font-size: 14px;
+        padding: 9px 14px; border-radius: 999px; border: 1px solid var(--panel-edge);
+        background: rgba(13,20,48,.7); letter-spacing: .06em;
+      }
+      .overall .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; background: var(--mint); box-shadow: 0 0 10px var(--mint); }
+      .overall.warn .dot { background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+      .overall.err .dot { background: var(--red); box-shadow: 0 0 10px var(--red); animation: pulse-dot 1s ease-in-out infinite; }
+      .chip {
+        font-size: 12.5px; color: var(--ink-dim); padding: 8px 12px; border-radius: 999px;
+        border: 1px solid var(--line); background: rgba(13,20,48,.55);
+      }
+      .chip b { font-family: "Cinzel", serif; margin-left: 4px; color: var(--ink); }
+      .chip.c-ok b { color: var(--mint); } .chip.c-warn b { color: var(--amber); } .chip.c-err b { color: var(--red); }
+      @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+      /* ---------- layout ---------- */
+      .layout {
+        position: relative; z-index: 2;
+        display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start;
+        gap: 18px; max-width: 1240px; margin: 0 auto; padding: 10px 16px 30px;
+      }
+      .stage-col { width: min(94vw, 740px); flex: 0 1 740px; }
+
+      /* ---------- stage / magic circle ---------- */
+      .stage {
+        position: relative; width: 100%; aspect-ratio: 1 / 1;
+        --flow: var(--mint);
+      }
+      .stage::before { /* ambient glow behind the circle */
+        content: ""; position: absolute; inset: 6%; border-radius: 50%;
+        background: radial-gradient(circle, rgba(77,240,184,.13) 0%, rgba(77,240,184,.05) 45%, transparent 68%);
+        transition: background .8s ease, opacity .8s ease; pointer-events: none;
+      }
+      .stage.all-ok::before {
+        background: radial-gradient(circle, rgba(77,240,184,.24) 0%, rgba(77,240,184,.09) 48%, transparent 70%);
+        animation: breathe 5s ease-in-out infinite;
+      }
+      .stage.has-warn::before { background: radial-gradient(circle, rgba(255,184,77,.14) 0%, rgba(255,184,77,.05) 48%, transparent 70%); }
+      .stage.has-err::before { background: radial-gradient(circle, rgba(255,82,102,.16) 0%, rgba(255,82,102,.05) 48%, transparent 70%); }
+      @keyframes breathe { 0%,100% { opacity: .75; } 50% { opacity: 1; } }
+      .stage svg.ringart { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+      .spin-a { transform-origin: 500px 500px; animation: spin 260s linear infinite; }
+      .spin-b { transform-origin: 500px 500px; animation: spin-rev 190s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes spin-rev { to { transform: rotate(-360deg); } }
+      .stage.all-ok .ring-main { filter: drop-shadow(0 0 7px rgba(77,240,184,.55)); }
+      .ring-main, .ring-deco { transition: stroke .6s ease; }
+      .stage.has-warn .ring-main { stroke: rgba(255,184,77,.5); }
+      .stage.has-err .ring-main { stroke: rgba(255,82,102,.55); }
+      .edge-line { stroke: rgba(140,180,255,.44); stroke-width: 2.5; fill: none; transition: stroke .5s ease; }
+      .stage.all-ok .edge-line { stroke: rgba(77,240,184,.58); }
+      .edge-line.src-warn { stroke: rgba(255,184,77,.72); }
+      .edge-line.src-err { stroke: rgba(255,82,102,.78); }
+      .particle { pointer-events: none; }
+      .eye { cursor: pointer; }
+      .eye .eye-shape { fill: rgba(10,16,40,.85); stroke: rgba(150,200,255,.5); stroke-width: 2; transition: stroke .5s ease; }
+      .eye .pupil { fill: #9fd8ff; transition: fill .5s ease; }
+      .stage.all-ok .eye .eye-shape { stroke: var(--mint-soft); }
+      .stage.all-ok .eye .pupil { fill: var(--mint); }
+      .eye.st-warn .eye-shape { stroke: rgba(255,184,77,.75); } .eye.st-warn .pupil { fill: var(--amber); }
+      .eye.st-err .eye-shape { stroke: rgba(255,82,102,.85); } .eye.st-err .pupil { fill: var(--red); }
+      .eye.dormant { opacity: .18; }
+
+      /* ---------- nodes ---------- */
+      .node {
+        position: absolute; z-index: 4; width: var(--node-size); height: var(--node-size);
+        transform: translate(-50%, -50%);
+        border-radius: 50%; border: 1.5px solid var(--mint-soft);
+        background: radial-gradient(circle at 35% 30%, rgba(50,80,160,.85), rgba(10,16,42,.95) 70%);
+        color: var(--ink); cursor: grab; touch-action: none;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 0 14px rgba(77,240,184,.35), inset 0 0 12px rgba(77,240,184,.14);
+        transition: border-color .45s ease, box-shadow .45s ease, opacity .45s ease, filter .45s ease;
+        font-family: inherit; padding: 0;
+      }
+      .node .glyph { font-family: "Shippori Mincho B1", serif; font-weight: 800; font-size: calc(var(--node-size) * .38); line-height: 1; pointer-events: none; text-shadow: 0 0 12px rgba(160,255,225,.6); }
+      .label-layer { position: absolute; inset: 0; z-index: 9; pointer-events: none; }
+      .node-label {
+        position: absolute; transform: translate(-50%, 0);
+        font-size: 10.5px; letter-spacing: .02em; color: var(--ink-dim); white-space: nowrap;
+        text-shadow: 0 1px 6px #04060f, 0 0 3px #04060f, 0 0 10px #04060f;
+      }
+      .node-label.center-label { font-size: 12px; color: var(--ink); font-weight: 700; }
+      .node.center-node { --node-size: clamp(74px, 17vw, 112px); border-width: 2px; z-index: 5; cursor: pointer; }
+      .node.st-warn { border-color: rgba(255,184,77,.8); box-shadow: 0 0 16px rgba(255,184,77,.45), inset 0 0 12px rgba(255,184,77,.16); }
+      .node.st-warn .glyph { text-shadow: 0 0 12px rgba(255,205,120,.7); }
+      .node.st-err { border-color: rgba(255,82,102,.9); box-shadow: 0 0 18px rgba(255,82,102,.55), inset 0 0 12px rgba(255,82,102,.2); animation: node-pulse 1.15s ease-in-out infinite; }
+      .node.st-err .glyph { text-shadow: 0 0 12px rgba(255,140,155,.8); }
+      @keyframes node-pulse { 0%,100% { box-shadow: 0 0 12px rgba(255,82,102,.35), inset 0 0 10px rgba(255,82,102,.15); } 50% { box-shadow: 0 0 26px rgba(255,82,102,.75), inset 0 0 16px rgba(255,82,102,.3); } }
+      .node.dormant { opacity: .22; filter: grayscale(.8); box-shadow: none; animation: none; }
+      .node.booting { animation: boot-flash .8s ease-out; }
+      @keyframes boot-flash {
+        0% { box-shadow: 0 0 0 0 rgba(160,255,225,.0), 0 0 0 rgba(77,240,184,0); filter: brightness(2.4); }
+        35% { box-shadow: 0 0 0 14px rgba(160,255,225,.14), 0 0 44px rgba(77,240,184,.95); filter: brightness(1.9); }
+        100% { filter: brightness(1); }
+      }
+      .node.selected { outline: 2px solid rgba(210,235,255,.85); outline-offset: 4px; }
+      .node.dragging { cursor: grabbing; z-index: 8; transition: none; }
+      .node .ring-tag {
+        position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+        font-size: 9.5px; letter-spacing: .14em; color: var(--ink-faint); white-space: nowrap; pointer-events: none;
+      }
+
+      /* ---------- orchestra base ---------- */
+      .base {
+        margin-top: 14px; width: 100%; text-align: left; cursor: pointer;
+        display: flex; align-items: center; gap: 14px;
+        padding: 14px 18px; border-radius: 14px; color: var(--ink);
+        background: linear-gradient(180deg, rgba(24,36,80,.9), rgba(10,15,38,.95));
+        border: 1px solid var(--panel-edge);
+        box-shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(160,190,255,.18);
+        font-family: inherit; transition: box-shadow .5s ease, opacity .5s ease, filter .5s ease;
+      }
+      .base:hover { border-color: rgba(140,175,255,.5); }
+      .base.selected { outline: 2px solid rgba(210,235,255,.85); outline-offset: 3px; }
+      .base.dormant { opacity: .3; filter: grayscale(.8); }
+      .base.booting { box-shadow: 0 0 34px rgba(77,240,184,.55), inset 0 1px 0 rgba(160,190,255,.25); }
+      .base .b-glyph {
+        font-family: "Shippori Mincho B1", serif; font-weight: 800; font-size: 26px;
+        width: 52px; height: 52px; flex: 0 0 52px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        border: 1.5px solid var(--mint-soft); box-shadow: 0 0 12px rgba(77,240,184,.3), inset 0 0 10px rgba(77,240,184,.12);
+      }
+      .base.st-warn .b-glyph { border-color: rgba(255,184,77,.8); box-shadow: 0 0 12px rgba(255,184,77,.4); }
+      .base.st-err .b-glyph { border-color: rgba(255,82,102,.9); box-shadow: 0 0 14px rgba(255,82,102,.5); }
+      .base .b-main { min-width: 0; }
+      .base .b-name { font-weight: 700; font-size: 15.5px; letter-spacing: .03em; }
+      .base .b-name .b-cat { font-family: "Cinzel", serif; font-size: 11px; color: var(--ink-faint); letter-spacing: .18em; margin-right: 10px; }
+      .base .b-desc { font-size: 12.5px; color: var(--ink-dim); margin-top: 2px; }
+      .base .b-status { margin-left: auto; flex: 0 0 auto; font-size: 12px; color: var(--ink-dim); display: flex; align-items: center; gap: 7px; }
+      .sdot { width: 10px; height: 10px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 9px var(--mint); flex: 0 0 auto; }
+      .sdot.warn { background: var(--amber); box-shadow: 0 0 9px var(--amber); }
+      .sdot.err { background: var(--red); box-shadow: 0 0 9px var(--red); animation: pulse-dot 1s ease-in-out infinite; }
+
+      /* ---------- detail panel ---------- */
+      .panel {
+        flex: 1 1 320px; max-width: 400px; min-width: min(92vw, 320px);
+        background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 16px;
+        padding: 20px 20px 16px; backdrop-filter: blur(6px);
+        box-shadow: 0 14px 40px rgba(0,0,0,.4);
+      }
+      .panel .p-cat { font-family: "Cinzel", serif; font-size: 11px; letter-spacing: .22em; color: var(--ink-faint); }
+      .panel h2 { font-family: "Shippori Mincho B1", serif; font-size: 23px; margin: 6px 0 2px; line-height: 1.3; }
+      .panel .p-name { font-size: 13px; color: var(--mint); letter-spacing: .04em; }
+      .panel .p-motif { font-size: 12.5px; color: var(--ink-dim); margin-top: 2px; }
+      .panel .p-role { font-size: 14px; line-height: 1.75; margin: 12px 0 4px; }
+      .panel h3 { font-size: 12px; letter-spacing: .16em; color: var(--ink-faint); margin: 18px 0 8px; font-weight: 700; }
+      .seg { display: flex; gap: 8px; }
+      .seg button {
+        flex: 1; min-height: 42px; border-radius: 9px; cursor: pointer; font-family: inherit;
+        font-size: 13.5px; font-weight: 700; letter-spacing: .06em;
+        background: rgba(20,30,66,.6); color: var(--ink-dim); border: 1px solid var(--line);
+        transition: all .15s ease;
+      }
+      .seg button[aria-pressed="true"][data-st="ok"] { background: rgba(77,240,184,.16); color: var(--mint); border-color: var(--mint-soft); box-shadow: 0 0 12px rgba(77,240,184,.25); }
+      .seg button[aria-pressed="true"][data-st="warn"] { background: rgba(255,184,77,.15); color: var(--amber); border-color: rgba(255,184,77,.6); box-shadow: 0 0 12px rgba(255,184,77,.22); }
+      .seg button[aria-pressed="true"][data-st="err"] { background: rgba(255,82,102,.15); color: var(--red); border-color: rgba(255,82,102,.6); box-shadow: 0 0 12px rgba(255,82,102,.25); }
+      .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .metric { background: rgba(9,14,36,.65); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+      .metric .m-label { font-size: 11px; color: var(--ink-faint); letter-spacing: .08em; }
+      .metric .m-value { font-family: "Cinzel", serif; font-size: 19px; font-weight: 700; margin-top: 2px; }
+      .metric .m-value small { font-size: 11px; color: var(--ink-dim); font-family: "Zen Kaku Gothic New", sans-serif; font-weight: 400; margin-left: 3px; }
+      .logs { list-style: none; margin: 0; padding: 10px 12px; background: rgba(4,7,20,.75); border: 1px solid var(--line); border-radius: 10px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.9; color: #a9bce8; overflow-x: auto; }
+      .logs .lt { color: var(--ink-faint); margin-right: 8px; }
+      .logs .lv-ok { color: var(--mint); } .logs .lv-warn { color: var(--amber); } .logs .lv-err { color: var(--red); }
+      .logs li { white-space: nowrap; }
+      .panel .p-hint { font-size: 12px; color: var(--ink-faint); line-height: 1.7; margin-top: 14px; }
+      .panel-empty { color: var(--ink-dim); font-size: 14px; line-height: 1.9; }
+      .panel-empty .big { font-family: "Shippori Mincho B1", serif; font-size: 19px; color: var(--ink); display: block; margin-bottom: 6px; }
+      .comp-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 4px; }
+      .comp-list button {
+        width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer;
+        background: none; border: 1px solid transparent; border-radius: 9px; padding: 8px 10px;
+        color: var(--ink-dim); font-family: inherit; font-size: 13px; min-height: 40px;
+      }
+      .comp-list button:hover { background: rgba(30,45,95,.5); color: var(--ink); }
+      .comp-list .cl-glyph { font-family: "Shippori Mincho B1", serif; font-weight: 800; width: 22px; text-align: center; color: var(--ink); }
+      .comp-list .cl-name { flex: 1; }
+
+      .toast {
+        position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 20px); z-index: 20;
+        background: rgba(10, 26, 24, .92); border: 1px solid var(--mint-soft); color: #c9ffe9;
+        font-family: "Shippori Mincho B1", serif; font-weight: 700; font-size: 15px; letter-spacing: .08em;
+        padding: 13px 24px; border-radius: 999px; box-shadow: 0 0 30px rgba(77,240,184,.35);
+        opacity: 0; pointer-events: none; transition: opacity .4s ease, transform .4s ease;
+      }
+      .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+      @media (max-width: 760px) {
+        .panel { max-width: none; }
+        .status-cluster { margin-left: 0; }
+        .node-label { font-size: 9.5px; }
+        .node-label.center-label { font-size: 11px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spin-a, .spin-b, .stage.all-ok::before, .node.st-err, .overall.err .dot, .sdot.err { animation: none !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <h1 class="sr-only">魔法陣ダッシュボード — sigil-orchestra 統合管理</h1>
+
+    <div class="controls">
+      <button class="btn btn-invoke" id="invokeBtn" type="button">発 動</button>
+      <button class="btn btn-ghost" id="resetBtn" type="button">全て正常に戻す</button>
+      <div class="status-cluster">
+        <span class="overall" id="overallPill"><span class="dot"></span><span id="overallText">魔法陣は完成しています</span></span>
+        <span class="chip c-ok">正常<b id="cntOk">11</b></span>
+        <span class="chip c-warn">警告<b id="cntWarn">0</b></span>
+        <span class="chip c-err">異常<b id="cntErr">0</b></span>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="stage-col">
+        <div class="stage all-ok" id="stage" aria-label="Sigil エコシステムの魔法陣">
+          <svg class="ringart" viewBox="0 0 1000 1000" aria-hidden="true">
+            <defs>
+              <path id="runeCirclePath" d="M 500,85 a 415,415 0 1,1 -0.01,0" />
+              <marker id="arrowHead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+                <path d="M 0,0 L 10,5 L 0,10 z" fill="rgba(150,190,255,.55)" />
+              </marker>
+            </defs>
+
+            <!-- rotating ornament: rune ring + star polygons -->
+            <g class="spin-a">
+              <circle cx="500" cy="500" r="472" fill="none" stroke="rgba(120,160,255,.20)" stroke-width="1" />
+              <circle cx="500" cy="500" r="438" fill="none" stroke="rgba(120,160,255,.14)" stroke-width="1" stroke-dasharray="3 9" />
+              <text font-size="25" fill="rgba(150,205,255,.5)" letter-spacing="10" font-family="serif">
+                <textPath href="#runeCirclePath">ᚠ ᚢ ᚦ ᚨ ᚱ ᚲ ᚷ ᚹ ᚺ ᚾ ᛁ ᛃ ᛇ ᛈ ᛉ ᛊ ᛏ ᛒ ᛖ ᛗ ᛚ ᛜ ᛞ ᛟ ᚠ ᚢ ᚦ ᚨ ᚱ ᚲ ᚷ ᚹ ᚺ ᚾ ᛁ ᛃ</textPath>
+              </text>
+              <g id="eyeRing"></g>
+            </g>
+            <g class="spin-b" opacity=".5">
+              <polygon points="500,215 785,642 215,642" fill="none" stroke="rgba(120,160,255,.13)" stroke-width="1" />
+              <polygon points="500,785 215,358 785,358" fill="none" stroke="rgba(120,160,255,.13)" stroke-width="1" />
+              <circle cx="500" cy="500" r="262" fill="none" stroke="rgba(120,160,255,.12)" stroke-width="1" stroke-dasharray="2 7" />
+            </g>
+
+            <!-- structural rings -->
+            <circle class="ring-main" cx="500" cy="500" r="455" fill="none" stroke="rgba(77,240,184,.4)" stroke-width="1.6" />
+            <circle class="ring-main" cx="500" cy="500" r="335" fill="none" stroke="rgba(77,240,184,.34)" stroke-width="1.4" />
+            <circle class="ring-deco" cx="500" cy="500" r="248" fill="none" stroke="rgba(120,160,255,.15)" stroke-width="1" stroke-dasharray="10 6" />
+            <circle class="ring-main" cx="500" cy="500" r="175" fill="none" stroke="rgba(77,240,184,.34)" stroke-width="1.4" />
+            <circle class="ring-deco" cx="500" cy="500" r="98" fill="none" stroke="rgba(120,160,255,.2)" stroke-width="1" />
+
+            <g id="edgeLayer"></g>
+            <g id="particleLayer"></g>
+          </svg>
+          <!-- nodes and their labels are injected here by script -->
+          <div class="label-layer" id="labelLayer"></div>
+        </div>
+
+        <button class="base st-ok" id="baseBtn" type="button" aria-label="sigil-orchestra の詳細を開く">
+          <span class="b-glyph">奏</span>
+          <span class="b-main">
+            <span class="b-name"><span class="b-cat">FOUNDATION</span>sigil-orchestra</span>
+            <span class="b-desc" style="display:block">土台 — この魔法陣全体を駆動する統合管理コンポーネント</span>
+          </span>
+          <span class="b-status"><span class="sdot" id="baseDot"></span><span id="baseStatusText">正常</span></span>
+        </button>
+      </div>
+
+      <aside class="panel" id="panel" aria-live="polite">
+        <div id="panelBody"></div>
+      </aside>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+
+    <script>
+      "use strict";
+      var CX = 500, CY = 500;
+      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      /* ---------------- data (all dummy) ---------------- */
+      var COMPONENTS = [
+        { id: "sigix", name: "sigix", glyph: "印", cat: "CORE / WEB SERVER", catJa: "Webサーバー",
+          motif: "Sigil（印章）＋ Nginx", role: "魔法陣の心臓。外部からのリクエストを受け、認証・関数・キャッシュへ振り分けるコアとなる高速Webサーバー／リバースプロキシ。",
+          kind: "center",
+          metrics: { "処理リクエスト": [1284, "/分"], "平均遅延": [6, "ms"], "同時接続": [342, ""], "エラー率": [0.02, "%"] },
+          logs: [["01:42:07", "ok", "upstream summon-functions へ 200 を返却"], ["01:41:52", "ok", "rune-auth のトークン検証 OK（12ms）"], ["01:40:18", "ok", "stash-kv キャッシュヒット率 96.4%"]] },
+        { id: "rune", name: "sigil-rune-auth", glyph: "紋", cat: "INNER / AUTH", catJa: "認証・セッション",
+          motif: "ルーン文字（Rune）— 刻まれた印が鍵になる", role: "第一の円。ユーザー認証・トークン発行・セッション管理を担う。sigix と双方向に連携し、すべてのリクエストの身元を検証する。",
+          kind: "ring", ring: 175, angle: -30,
+          metrics: { "トークン検証": [1150, "/分"], "平均遅延": [3, "ms"], "有効セッション": [8912, ""], "エラー率": [0.01, "%"] },
+          logs: [["01:42:03", "ok", "JWT 検証成功 user_id=8f3…"], ["01:41:37", "ok", "新規セッション発行（TTL 24h）"], ["01:39:55", "ok", "鍵束のローテーション完了"]] },
+        { id: "stash", name: "sigil-stash-kv", glyph: "蔵", cat: "INNER / KV CACHE", catJa: "KV・キャッシュ",
+          motif: "貯蔵庫（Stash）", role: "第一の円。高速キーバリューストア／インメモリキャッシュ。セッションや頻出データを保持し、sigix の応答を加速する。",
+          kind: "ring", ring: 175, angle: 90,
+          metrics: { "ヒット率": [96.4, "%"], "平均遅延": [0.4, "ms"], "格納キー数": [184203, ""], "メモリ使用": [61, "%"] },
+          logs: [["01:42:09", "ok", "GET session:8f3… HIT"], ["01:41:44", "ok", "スナップショット保存完了（RDB）"], ["01:38:20", "ok", "エビクション 0 件"]] },
+        { id: "summon", name: "sigil-summon-functions", glyph: "喚", cat: "INNER / SERVERLESS", catJa: "サーバーレス関数",
+          motif: "召喚（Summon）— 必要なときにだけ呼び出す", role: "第一の円。イベント駆動の関数実行環境。sigix から受けた処理を実行し、重い後続処理は herald-queue へ渡す。",
+          kind: "ring", ring: 175, angle: 210,
+          metrics: { "関数実行": [428, "/分"], "平均実行時間": [84, "ms"], "コールドスタート": [1.2, "%"], "エラー率": [0.08, "%"] },
+          logs: [["01:42:05", "ok", "fn resize-image 実行完了 62ms"], ["01:41:58", "ok", "fn issue-token 実行完了 41ms"], ["01:40:02", "ok", "ワーカープール 8/8 稼働"]] },
+        { id: "atlas", name: "sigil-atlas-dns", glyph: "天", cat: "BARRIER / DNS", catJa: "DNS",
+          motif: "天空を支える神（Atlas）", role: "結界の入口。名前解決とルーティングの基盤。クライアントの問い合わせに応え、リクエストを魔法陣の入口へ導く。",
+          kind: "ring", ring: 335, angle: -150, ringTag: "結界",
+          metrics: { "クエリ": [2310, "/分"], "平均応答": [4, "ms"], "ゾーン数": [12, ""], "エラー率": [0.00, "%"] },
+          logs: [["01:42:11", "ok", "A api.sigil.example → 203.0.113.10"], ["01:41:29", "ok", "DNSSEC 署名の検証 OK"], ["01:37:48", "ok", "ゾーン転送完了（セカンダリ同期）"]] },
+        { id: "shield", name: "sigil-shield-tls", glyph: "盾", cat: "BARRIER / TLS", catJa: "TLS終端",
+          motif: "盾（Shield）", role: "結界の第二層。SSL/TLS の終端と証明書の自動管理を担い、暗号化を解除して後段へ渡す。",
+          kind: "ring", ring: 335, angle: -90, ringTag: "結界",
+          metrics: { "TLS接続": [1180, "/分"], "ハンドシェイク": [11, "ms"], "証明書残日数": [74, "日"], "エラー率": [0.03, "%"] },
+          logs: [["01:42:06", "ok", "TLS 1.3 ハンドシェイク完了"], ["01:41:12", "ok", "証明書は自動更新スケジュール内"], ["01:36:40", "ok", "OCSP ステープリング有効"]] },
+        { id: "aegis", name: "sigil-aegis-waf", glyph: "防", cat: "BARRIER / WAF", catJa: "WAF",
+          motif: "神盾（Aegis）", role: "結界の第三層。アプリケーション層の防御を担い、不正なリクエストを中心へ届く前に遮断する。",
+          kind: "ring", ring: 335, angle: -30, ringTag: "結界",
+          metrics: { "検査リクエスト": [1195, "/分"], "遮断": [3, "件/時"], "ルール数": [212, ""], "誤検知率": [0.01, "%"] },
+          logs: [["01:42:01", "ok", "全リクエスト検査完了（遮断 0）"], ["01:39:31", "warn", "不審な UA パターンを観測（監視中）"], ["01:35:57", "ok", "ルールセット v48 適用済み"]] },
+        { id: "herald", name: "sigil-herald-queue", glyph: "令", cat: "CHAIN / QUEUE", catJa: "メッセージキュー",
+          motif: "伝令使（Herald）", role: "下部の鎖の起点。非同期タスクの仲介とイベント配信を担い、summon-functions からの処理を順序よく運ぶ。",
+          kind: "chain", x: 350, y: 845,
+          metrics: { "処理メッセージ": [312, "/分"], "滞留": [14, "件"], "平均待機": [0.8, "秒"], "デッドレター": [0, "件"] },
+          logs: [["01:42:08", "ok", "msg #88412 を raven-mail へ配送"], ["01:41:47", "ok", "コンシューマ 4 台が正常稼働"], ["01:39:12", "ok", "滞留は閾値以下"]] },
+        { id: "raven", name: "sigil-raven-mail", glyph: "鴉", cat: "CHAIN / MAIL", catJa: "メールサーバー",
+          motif: "伝令のカラス（Raven）", role: "下部の鎖の終端。トランザクションメールの送信と通知配信を担う。herald-queue から受けた依頼を確実に届ける。",
+          kind: "chain", x: 650, y: 845,
+          metrics: { "送信": [96, "通/分"], "到達率": [99.2, "%"], "平均配送": [2.4, "秒"], "バウンス率": [0.3, "%"] },
+          logs: [["01:42:04", "ok", "注文確認メールを配送完了"], ["01:41:20", "ok", "SPF / DKIM / DMARC すべて合格"], ["01:38:51", "ok", "送信キューは空"]] },
+        { id: "argus", name: "sigil-argus-observe", glyph: "目", cat: "OUTER RING / OBSERVE", catJa: "監視・ログ収集",
+          motif: "百目の巨人（Argus）— 最外周の目で全体を見張る", role: "最外周のリング。魔法陣のすべてのコンポーネントのメトリクス監視・分散トレーシング・ログ収集を常時行う。",
+          kind: "special",
+          metrics: { "収集メトリクス": [48200, "点/分"], "アクティブアラート": [0, "件"], "トレース保持": [72, "時間"], "取りこぼし": [0, "件"] },
+          logs: [["01:42:10", "ok", "全コンポーネントから受信中"], ["01:41:33", "ok", "トレースのサンプリング率 100%"], ["01:37:05", "ok", "アラートなし — 陣は安定"]] },
+        { id: "orchestra", name: "sigil-orchestra", glyph: "奏", cat: "FOUNDATION / ORCHESTRATION", catJa: "オーケストレーション",
+          motif: "交響楽団（Orchestra）— 全員を指揮する", role: "魔法陣の土台。全コンポーネントの統合管理と、この魔法陣ダッシュボードそのものの運用を担う。",
+          kind: "special",
+          metrics: { "管理コンポーネント": [10, "台"], "健全な配備": [10, "/10"], "最終デプロイ": [3, "日前"], "構成ドリフト": [0, "件"] },
+          logs: [["01:42:00", "ok", "全コンポーネントの状態を同期"], ["01:40:44", "ok", "魔法陣の描画を更新"], ["01:36:15", "ok", "定時ヘルスチェック完了"]] }
+      ];
+
+      var EDGES = [
+        { a: "atlas", b: "shield" }, { a: "shield", b: "aegis" }, { a: "aegis", b: "sigix" },
+        { a: "sigix", b: "rune" }, { a: "rune", b: "sigix" },
+        { a: "sigix", b: "summon" }, { a: "sigix", b: "stash" },
+        { a: "summon", b: "herald" }, { a: "herald", b: "raven" }
+      ];
+      var BOOT_ORDER = ["atlas", "shield", "aegis", "sigix", "rune", "stash", "summon", "herald", "raven", "argus", "orchestra"];
+      var STATUS_LABEL = { ok: "正常", warn: "警告", err: "異常" };
+
+      var byId = {};
+      COMPONENTS.forEach(function (c) { c.status = "ok"; byId[c.id] = c; });
+
+      function posOf(c) {
+        if (c.kind === "center") return { x: CX, y: CY };
+        if (c.kind === "ring") {
+          var r = c.angle * Math.PI / 180;
+          return { x: CX + c.ring * Math.cos(r), y: CY + c.ring * Math.sin(r) };
+        }
+        if (c.kind === "chain") return { x: c.x, y: c.y };
+        return { x: CX, y: CY };
+      }
+
+      var stage = document.getElementById("stage");
+      var edgeLayer = document.getElementById("edgeLayer");
+      var particleLayer = document.getElementById("particleLayer");
+      var SVGNS = "http://www.w3.org/2000/svg";
+
+      /* ---------------- argus eyes ---------------- */
+      var eyeRing = document.getElementById("eyeRing");
+      var eyeEls = [];
+      for (var i = 0; i < 12; i++) {
+        (function (i) {
+          var a = (i * 30 - 90) * Math.PI / 180;
+          var ex = CX + 455 * Math.cos(a), ey = CY + 455 * Math.sin(a);
+          var g = document.createElementNS(SVGNS, "g");
+          g.setAttribute("class", "eye");
+          g.setAttribute("transform", "translate(" + ex + "," + ey + ") rotate(" + (i * 30) + ")");
+          var shape = document.createElementNS(SVGNS, "path");
+          shape.setAttribute("class", "eye-shape");
+          shape.setAttribute("d", "M -17,0 Q 0,-13 17,0 Q 0,13 -17,0 Z");
+          var pupil = document.createElementNS(SVGNS, "circle");
+          pupil.setAttribute("class", "pupil"); pupil.setAttribute("r", "4.6");
+          var title = document.createElementNS(SVGNS, "title");
+          title.textContent = "sigil-argus-observe";
+          g.appendChild(shape); g.appendChild(pupil); g.appendChild(title);
+          g.addEventListener("click", function () { select("argus"); });
+          eyeRing.appendChild(g); eyeEls.push(g);
+        })(i);
+      }
+
+      /* ---------------- edges & particles ---------------- */
+      EDGES.forEach(function (e) {
+        var p = document.createElementNS(SVGNS, "path");
+        p.setAttribute("class", "edge-line");
+        p.setAttribute("marker-end", "url(#arrowHead)");
+        edgeLayer.appendChild(p);
+        e.el = p; e.len = 100;
+        e.dots = [];
+        for (var k = 0; k < 2; k++) {
+          var dot = document.createElementNS(SVGNS, "circle");
+          dot.setAttribute("class", "particle");
+          dot.setAttribute("r", k === 0 ? "5" : "3.8");
+          particleLayer.appendChild(dot);
+          e.dots.push({ el: dot, t: k * 0.5 });
+        }
+      });
+
+      function drawEdges() {
+        EDGES.forEach(function (e) {
+          var pa = posOf(byId[e.a]), pb = posOf(byId[e.b]);
+          /* shorten so the line stops at the node rim */
+          var dx = pb.x - pa.x, dy = pb.y - pa.y;
+          var d = Math.sqrt(dx * dx + dy * dy) || 1;
+          var trimA = byId[e.a].kind === "center" ? 62 : 50;
+          var trimB = byId[e.b].kind === "center" ? 66 : 54;
+          var x1 = pa.x + dx / d * trimA, y1 = pa.y + dy / d * trimA;
+          var x2 = pb.x - dx / d * trimB, y2 = pb.y - dy / d * trimB;
+          e.el.setAttribute("d", "M " + x1 + "," + y1 + " L " + x2 + "," + y2);
+          e.len = Math.max(1, Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)));
+          e.el.setAttribute("class", "edge-line" + (byId[e.a].status === "warn" ? " src-warn" : byId[e.a].status === "err" ? " src-err" : ""));
+        });
+      }
+
+      var lastTs = null;
+      function tick(ts) {
+        if (lastTs === null) lastTs = ts;
+        var dt = Math.min(0.05, (ts - lastTs) / 1000); lastTs = ts;
+        EDGES.forEach(function (e) {
+          var src = byId[e.a];
+          var speed = src.status === "err" ? 0.05 : src.status === "warn" ? 0.1 : 0.16;
+          e.dots.forEach(function (dot) {
+            if (!reduced) { dot.t += dt * speed; if (dot.t > 1) dot.t -= 1; }
+            var pt = e.el.getPointAtLength(dot.t * e.len);
+            dot.el.setAttribute("cx", pt.x); dot.el.setAttribute("cy", pt.y);
+            dot.el.setAttribute("fill", src.status === "err" ? "#ff8091" : src.status === "warn" ? "#ffcf87" : "#8ff7cd");
+            dot.el.setAttribute("opacity", src.status === "err" ? ".55" : ".95");
+            dot.el.style.filter = "drop-shadow(0 0 5px " + (src.status === "ok" ? "rgba(77,240,184,.9)" : src.status === "warn" ? "rgba(255,184,77,.9)" : "rgba(255,82,102,.9)") + ")";
+          });
+        });
+        requestAnimationFrame(tick);
+      }
+
+      /* ---------------- nodes ---------------- */
+      var labelLayer = document.getElementById("labelLayer");
+      var nodeEls = {};
+      var labelEls = {};
+      COMPONENTS.forEach(function (c) {
+        if (c.kind === "special") return;
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "node st-ok" + (c.kind === "center" ? " center-node" : "");
+        btn.setAttribute("aria-label", c.name + " の詳細を開く");
+        var glyph = document.createElement("span"); glyph.className = "glyph"; glyph.textContent = c.glyph;
+        btn.appendChild(glyph);
+        if (c.ringTag) { var tag = document.createElement("span"); tag.className = "ring-tag"; tag.textContent = c.ringTag; btn.appendChild(tag); }
+        stage.appendChild(btn);
+        nodeEls[c.id] = btn;
+        var lab = document.createElement("span");
+        lab.className = "node-label" + (c.kind === "center" ? " center-label" : "");
+        lab.textContent = c.name;
+        labelLayer.appendChild(lab);
+        labelEls[c.id] = lab;
+        attachNodeBehavior(btn, c);
+      });
+
+      function placeNodes() {
+        COMPONENTS.forEach(function (c) {
+          var el = nodeEls[c.id]; if (!el) return;
+          var p = posOf(c);
+          el.style.left = (p.x / 10) + "%";
+          el.style.top = (p.y / 10) + "%";
+          var lab = labelEls[c.id];
+          if (lab) {
+            lab.style.left = (p.x / 10) + "%";
+            lab.style.top = (p.y / 10) + "%";
+            lab.style.transform = "translate(-50%, " + (el.offsetHeight / 2 + 6) + "px)";
+          }
+        });
+        drawEdges();
+      }
+
+      /* ---------------- drag & click ---------------- */
+      var selectedId = null;
+      function attachNodeBehavior(el, c) {
+        var drag = null, moved = false;
+        el.addEventListener("pointerdown", function (ev) {
+          if (c.kind === "center") return;
+          if (ev.button !== undefined && ev.button !== 0) return; /* left button / touch only — right button is reserved for status cycling */
+          drag = { x: ev.clientX, y: ev.clientY };
+          moved = false;
+          try { el.setPointerCapture(ev.pointerId); } catch (e) { /* capture is best-effort */ }
+        });
+        el.addEventListener("pointermove", function (ev) {
+          if (!drag) return;
+          if (Math.abs(ev.clientX - drag.x) + Math.abs(ev.clientY - drag.y) > 6) {
+            moved = true; el.classList.add("dragging");
+          }
+          if (!moved) return;
+          var rect = stage.getBoundingClientRect();
+          var ux = (ev.clientX - rect.left) / rect.width * 1000;
+          var uy = (ev.clientY - rect.top) / rect.height * 1000;
+          if (c.kind === "ring") {
+            c.angle = Math.atan2(uy - CY, ux - CX) * 180 / Math.PI;
+          } else if (c.kind === "chain") {
+            c.x = Math.max(90, Math.min(910, ux));
+            c.y = Math.max(760, Math.min(920, uy));
+          }
+          placeNodes();
+        });
+        function endDrag(ev) {
+          if (!drag) return;
+          drag = null;
+          el.classList.remove("dragging");
+          if (moved) el.dataset.suppress = "1";
+          if (moved && c.kind === "ring") {
+            /* snap-swap with a same-ring neighbour when dropped close to it:
+               diff is the angular separation (0 = same spot, 180 = opposite side),
+               so a swap belongs to a SMALL diff — the old "180 - diff < 14" test
+               fired when the nodes were nearly opposite, which was backwards. */
+            COMPONENTS.forEach(function (o) {
+              if (o !== c && o.kind === "ring" && o.ring === c.ring) {
+                var diff = Math.abs(((c.angle - o.angle) % 360 + 540) % 360 - 180);
+                if (diff < 14) { var t = c.angle; c.angle = o.angle; o.angle = t; }
+              }
+            });
+            placeNodes();
+          }
+          moved = false;
+        }
+        el.addEventListener("pointerup", endDrag);
+        el.addEventListener("pointercancel", endDrag);
+        el.addEventListener("click", function () {
+          if (el.dataset.suppress === "1") { el.dataset.suppress = ""; return; }
+          select(c.id);
+        });
+        el.addEventListener("contextmenu", function (ev) {
+          ev.preventDefault();
+          var order = ["ok", "warn", "err"];
+          setStatus(c.id, order[(order.indexOf(c.status) + 1) % 3]);
+          select(c.id);
+        });
+      }
+
+      /* ---------------- panel ---------------- */
+      var panelBody = document.getElementById("panelBody");
+      var baseBtn = document.getElementById("baseBtn");
+
+      function fmtNum(v) {
+        return typeof v === "number" ? (v >= 10000 ? Math.round(v).toLocaleString("ja-JP") : (Math.round(v * 100) / 100).toString()) : v;
+      }
+
+      function renderPanel() {
+        if (!selectedId) {
+          var html = '<div class="panel-empty"><span class="big">紋章を選んでください</span>' +
+            '魔法陣のノードをクリックすると、そのコンポーネントの役割・状態・メトリクス・ログがここに表示されます。' +
+            'ノードはドラッグで円の上を移動でき、右クリックで状態（正常／警告／異常）を切り替えることもできます。</div>' +
+            '<ul class="comp-list">';
+          COMPONENTS.forEach(function (c) {
+            html += '<li><button type="button" data-sel="' + c.id + '"><span class="cl-glyph">' + c.glyph + '</span>' +
+              '<span class="cl-name">' + c.name + '</span><span class="sdot' + (c.status === "warn" ? " warn" : c.status === "err" ? " err" : "") + '"></span></button></li>';
+          });
+          html += '</ul>';
+          panelBody.innerHTML = html;
+          Array.prototype.forEach.call(panelBody.querySelectorAll("[data-sel]"), function (b) {
+            b.addEventListener("click", function () { select(b.getAttribute("data-sel")); });
+          });
+          return;
+        }
+        var c = byId[selectedId];
+        var mhtml = "";
+        Object.keys(c.metrics).forEach(function (k) {
+          mhtml += '<div class="metric"><div class="m-label">' + k + '</div><div class="m-value">' + fmtNum(c.metrics[k][0]) + '<small>' + c.metrics[k][1] + '</small></div></div>';
+        });
+        var lhtml = "";
+        c.logs.forEach(function (l) {
+          lhtml += '<li><span class="lt">' + l[0] + '</span><span class="lv-' + l[1] + '">' + (l[1] === "ok" ? "INFO" : l[1] === "warn" ? "WARN" : "ERROR") + '</span> ' + l[2] + '</li>';
+        });
+        panelBody.innerHTML =
+          '<div class="p-cat">' + c.cat + '</div>' +
+          '<h2>' + c.catJa + '</h2>' +
+          '<div class="p-name">' + c.name + '</div>' +
+          '<div class="p-motif">' + c.motif + '</div>' +
+          '<p class="p-role">' + c.role + '</p>' +
+          '<h3>状態を切り替える</h3>' +
+          '<div class="seg" role="group" aria-label="状態切替">' +
+            ["ok", "warn", "err"].map(function (s) {
+              return '<button type="button" data-st="' + s + '" aria-pressed="' + (c.status === s) + '">' + STATUS_LABEL[s] + '</button>';
+            }).join("") +
+          '</div>' +
+          '<h3>メトリクス（ダミー）</h3><div class="metrics">' + mhtml + '</div>' +
+          '<h3>最新ログ（ダミー）</h3><ul class="logs">' + lhtml + '</ul>' +
+          '<p class="p-hint">状態を変えると、魔法陣の光の色と流れが連動します。実コンポーネントは未実装のため、表示中の数値とログはすべてダミーデータです。</p>';
+        Array.prototype.forEach.call(panelBody.querySelectorAll(".seg button"), function (b) {
+          b.addEventListener("click", function () { setStatus(c.id, b.getAttribute("data-st")); });
+        });
+      }
+
+      function select(id) {
+        selectedId = id;
+        COMPONENTS.forEach(function (c) {
+          if (nodeEls[c.id]) nodeEls[c.id].classList.toggle("selected", c.id === id);
+        });
+        baseBtn.classList.toggle("selected", id === "orchestra");
+        renderPanel();
+      }
+      baseBtn.addEventListener("click", function () { select("orchestra"); });
+
+      /* ---------------- status handling ---------------- */
+      var overallPill = document.getElementById("overallPill");
+      var overallText = document.getElementById("overallText");
+      function refreshOverall() {
+        var ok = 0, warn = 0, err = 0;
+        COMPONENTS.forEach(function (c) {
+          if (c.status === "ok") ok++; else if (c.status === "warn") warn++; else err++;
+          if (nodeEls[c.id]) nodeEls[c.id].className = nodeEls[c.id].className.replace(/st-(ok|warn|err)/, "st-" + c.status);
+        });
+        eyeEls.forEach(function (g) { g.setAttribute("class", "eye st-" + byId.argus.status + (g.classList.contains("dormant") ? " dormant" : "")); });
+        baseBtn.className = baseBtn.className.replace(/st-(ok|warn|err)/, "st-" + byId.orchestra.status);
+        document.getElementById("baseDot").className = "sdot" + (byId.orchestra.status === "warn" ? " warn" : byId.orchestra.status === "err" ? " err" : "");
+        document.getElementById("baseStatusText").textContent = STATUS_LABEL[byId.orchestra.status];
+        document.getElementById("cntOk").textContent = ok;
+        document.getElementById("cntWarn").textContent = warn;
+        document.getElementById("cntErr").textContent = err;
+        stage.classList.toggle("all-ok", err === 0 && warn === 0);
+        stage.classList.toggle("has-warn", err === 0 && warn > 0);
+        stage.classList.toggle("has-err", err > 0);
+        overallPill.className = "overall" + (err > 0 ? " err" : warn > 0 ? " warn" : "");
+        overallText.textContent = err > 0 ? "魔法陣が乱れています" : warn > 0 ? "魔法陣が揺らいでいます" : "魔法陣は完成しています";
+        drawEdges();
+        if (selectedId) renderPanel();
+      }
+      function setStatus(id, st) { byId[id].status = st; refreshOverall(); }
+
+      document.getElementById("resetBtn").addEventListener("click", function () {
+        COMPONENTS.forEach(function (c) { c.status = "ok"; });
+        refreshOverall();
+        showToast("全コンポーネントを正常に戻しました");
+      });
+
+      /* ---------------- invoke (boot sequence) ---------------- */
+      var toast = document.getElementById("toast");
+      var toastTimer = null;
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toast.classList.remove("show"); }, 3400);
+      }
+      var invokeBtn = document.getElementById("invokeBtn");
+      var booting = false;
+      invokeBtn.addEventListener("click", function () {
+        if (booting) return;
+        booting = true;
+        invokeBtn.disabled = true;
+        /* extinguish everything */
+        COMPONENTS.forEach(function (c) { if (nodeEls[c.id]) nodeEls[c.id].classList.add("dormant"); });
+        eyeEls.forEach(function (g) { g.classList.add("dormant"); });
+        baseBtn.classList.add("dormant");
+        stage.classList.remove("all-ok", "has-warn", "has-err");
+        var stepMs = reduced ? 60 : 430;
+        BOOT_ORDER.forEach(function (id, idx) {
+          setTimeout(function () {
+            var c = byId[id];
+            c.status = "ok";
+            if (nodeEls[id]) {
+              nodeEls[id].classList.remove("dormant");
+              nodeEls[id].classList.add("booting");
+              setTimeout(function () { nodeEls[id].classList.remove("booting"); }, 850);
+            }
+            if (id === "argus") eyeEls.forEach(function (g) { g.classList.remove("dormant"); });
+            if (id === "orchestra") { baseBtn.classList.remove("dormant"); baseBtn.classList.add("booting"); setTimeout(function () { baseBtn.classList.remove("booting"); }, 1200); }
+            refreshOverall();
+            if (idx === BOOT_ORDER.length - 1) {
+              booting = false;
+              invokeBtn.disabled = false;
+              showToast("発動完了 — 魔法陣が完成しました");
+            }
+          }, 350 + idx * stepMs);
+        });
+      });
+
+      /* ---------------- metric jitter (dummy liveliness) ---------------- */
+      setInterval(function () {
+        COMPONENTS.forEach(function (c) {
+          Object.keys(c.metrics).forEach(function (k) {
+            var v = c.metrics[k][0];
+            if (typeof v === "number" && v > 10 && c.metrics[k][1] !== "%" && c.metrics[k][1] !== "日") {
+              c.metrics[k][0] = Math.max(1, Math.round(v * (0.96 + Math.random() * 0.08)));
+            }
+          });
+        });
+        if (selectedId) renderPanel();
+      }, 4000);
+
+      /* ---------------- init ---------------- */
+      window.addEventListener("resize", placeNodes);
+      placeNodes();
+      refreshOverall();
+      renderPanel();
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>
